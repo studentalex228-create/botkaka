@@ -15,6 +15,16 @@ android {
         versionName = "1.0"
     }
 
+    // Указываем Java 17 для совместимости компиляторов
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     buildFeatures {
         compose = true
     }
@@ -41,7 +51,7 @@ dependencies {
     implementation("androidx.compose.material3:material3:1.2.1")
     implementation("androidx.compose.material:material-icons-extended:1.6.8")
 
-    // Официальный движок Google Media3 (аппаратное сжатие и очистка метаданных)
+    // Официальный движок Google Media3
     implementation("androidx.media3:media3-transformer:1.3.1")
     implementation("androidx.media3:media3-effect:1.3.1")
     implementation("androidx.media3:media3-common:1.3.1")
