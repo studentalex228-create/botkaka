@@ -1,6 +1,5 @@
 package com.example
 
-import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
@@ -12,17 +11,21 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,11 +51,14 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.LayersClear
 import androidx.compose.material.icons.filled.Refresh
@@ -62,31 +68,42 @@ import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -97,43 +114,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.media.FileCategory
 import com.example.media.ProcessingResult
 import com.example.ui.LogEntry
 import com.example.ui.MainViewModel
 import com.example.ui.UiState
-import com.example.ui.theme.Blue100
-import com.example.ui.theme.Blue50
-import com.example.ui.theme.Blue500
-import com.example.ui.theme.Blue600
-import com.example.ui.theme.Blue700
-import com.example.ui.theme.Blue900
-import com.example.ui.theme.CanvasBg
-import com.example.ui.theme.CardBg
-import com.example.ui.theme.CardBorder
-import com.example.ui.theme.CardBorderStrong
-import com.example.ui.theme.EmeraldBadgeBg
-import com.example.ui.theme.EmeraldBadgeText
 import com.example.ui.theme.EmeraldLight
 import com.example.ui.theme.EmeraldSuccess
-import com.example.ui.theme.InputBg
 import com.example.ui.theme.MyApplicationTheme
-import com.example.ui.theme.RoseError
-import com.example.ui.theme.RoseErrorBg
-import com.example.ui.theme.Slate100
-import com.example.ui.theme.Slate200
-import com.example.ui.theme.Slate300
-import com.example.ui.theme.Slate400
-import com.example.ui.theme.Slate50
-import com.example.ui.theme.Slate500
-import com.example.ui.theme.Slate600
-import com.example.ui.theme.Slate700
-import com.example.ui.theme.Slate800
-import com.example.ui.theme.Slate850
-import com.example.ui.theme.Slate900
-import com.example.ui.theme.Slate950
-import com.example.ui.theme.TerminalBg
 import com.example.ui.theme.TerminalCyan
+import com.example.ui.theme.TerminalDarkBg
 import com.example.ui.theme.TerminalGreen
 import com.example.ui.theme.TerminalRed
 import com.example.ui.theme.TerminalText
@@ -167,6 +156,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MediaSanitizerScreen(
     uiState: UiState,
@@ -182,6 +172,7 @@ fun MediaSanitizerScreen(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val scrollState = rememberScrollState()
+    var selectedModeIndex by remember { mutableIntStateOf(0) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -189,35 +180,160 @@ fun MediaSanitizerScreen(
         uri?.let { onSelectLocalFile(it) }
     }
 
+    // Spring animation spec for Material 3 Expressive physics
+    val expressiveSpring = spring<Float>(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessLow
+    )
+
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
-        containerColor = CanvasBg
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Security,
+                                    contentDescription = "Shield Icon",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Column {
+                            Text(
+                                text = "MediaPurge",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "EXIF & SHA-256 Sanitizer",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    FilledTonalIconButton(
+                        onClick = onUpdateYtDlp,
+                        enabled = !uiState.isUpdatingYtDlp,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .testTag("update_ytdlp_button")
+                    ) {
+                        if (uiState.isUpdatingYtDlp) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.5.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Обновить yt-dlp",
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(scrollState)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 1. Header Block (Clean Minimalism Header)
-            HeaderSection(
-                isUpdating = uiState.isUpdatingYtDlp,
-                statusMessage = uiState.ytDlpStatusMessage,
-                onUpdateClick = onUpdateYtDlp
-            )
-
-            // Error Banner if present
-            if (uiState.errorMessage != null) {
-                ErrorBanner(
-                    message = uiState.errorMessage,
-                    onDismiss = onDismissError
-                )
+            // yt-dlp Status Banner (if active)
+            AnimatedVisibility(
+                visible = !uiState.ytDlpStatusMessage.isNullOrBlank(),
+                enter = fadeIn() + slideInVertically(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ),
+                exit = fadeOut() + slideOutVertically()
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = uiState.ytDlpStatusMessage.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
             }
 
-            // 2. URL Downloader Block (Download Media)
-            UrlDownloaderSection(
+            // Error Banner (Spring Animated)
+            AnimatedVisibility(
+                visible = uiState.errorMessage != null,
+                enter = fadeIn() + slideInVertically(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ),
+                exit = fadeOut() + slideOutVertically()
+            ) {
+                uiState.errorMessage?.let { error ->
+                    ExpressiveErrorBanner(
+                        message = error,
+                        onDismiss = onDismissError
+                    )
+                }
+            }
+
+            // Quality & Mode Selector (SegmentedButtonRow)
+            ModeSelectorSection(
+                selectedIndex = selectedModeIndex,
+                onSelectIndex = { selectedModeIndex = it }
+            )
+
+            // 1. URL Downloader Card
+            ExpressiveUrlDownloaderCard(
                 url = uiState.urlInput,
                 isProcessing = uiState.isProcessing,
                 progressPercent = uiState.progressPercent,
@@ -233,27 +349,38 @@ fun MediaSanitizerScreen(
                 }
             )
 
-            // 3. Local File Picker Block (Select local file)
-            LocalFilePickerSection(
+            // 2. Local File Picker Card
+            ExpressiveLocalFileCard(
                 isProcessing = uiState.isProcessing,
                 onPickFileClick = { filePickerLauncher.launch("*/*") }
             )
 
-            // 4. Processing Result Card (Clean Navy Result View)
-            if (uiState.lastResult != null) {
-                ResultCardSection(
-                    result = uiState.lastResult,
-                    onOpenFile = { onOpenFile(uiState.lastResult.finalSavedPath) },
-                    onShareFile = { onShareFile(uiState.lastResult.finalSavedPath) },
-                    onCopyHash = { hash ->
-                        clipboardManager.setText(AnnotatedString(hash))
-                        Toast.makeText(context, "Хэш скопирован", Toast.LENGTH_SHORT).show()
-                    }
-                )
+            // 3. Result Section (Spring Animated)
+            AnimatedVisibility(
+                visible = uiState.lastResult != null,
+                enter = fadeIn() + slideInVertically(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ),
+                exit = fadeOut() + slideOutVertically()
+            ) {
+                uiState.lastResult?.let { result ->
+                    ExpressiveResultCard(
+                        result = result,
+                        onOpenFile = { onOpenFile(result.finalSavedPath) },
+                        onShareFile = { onShareFile(result.finalSavedPath) },
+                        onCopyHash = { hash ->
+                            clipboardManager.setText(AnnotatedString(hash))
+                            Toast.makeText(context, "Хэш скопирован", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
             }
 
-            // 5. Log Console (Terminal Footer)
-            LogConsoleSection(
+            // 4. Log Console Card (Spring Expandable Dark Surface)
+            ExpressiveLogConsole(
                 logs = uiState.logs,
                 onClearLogs = onClearLogs,
                 onCopyLogs = {
@@ -263,90 +390,60 @@ fun MediaSanitizerScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HeaderSection(
-    isUpdating: Boolean,
-    statusMessage: String?,
-    onUpdateClick: () -> Unit
+fun ModeSelectorSection(
+    selectedIndex: Int,
+    onSelectIndex: (Int) -> Unit
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = BorderStroke(1.dp, CardBorder),
-        modifier = Modifier.fillMaxWidth()
+    val modes = listOf("720p Clean", "Lossless Copy", "Deep Purge")
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        Text(
+            text = "РЕЖИМ ОБРАБОТКИ",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 4.dp)
+        )
+
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "MediaPurge",
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.5).sp,
-                        color = Slate900
+            modes.forEachIndexed { index, label ->
+                SegmentedButton(
+                    selected = selectedIndex == index,
+                    onClick = { onSelectIndex(index) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
+                    icon = {
+                        SegmentedButtonDefaults.Icon(active = selectedIndex == index) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(SegmentedButtonDefaults.IconSize)
+                            )
+                        }
+                    },
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        text = "v2.4.0 • Android SDK 34",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 1.5.sp,
-                        color = Blue600
-                    )
-                }
-
-                // Update yt-dlp circular button
-                IconButton(
-                    onClick = onUpdateClick,
-                    enabled = !isUpdating,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(Blue50, CircleShape)
-                        .border(1.dp, Blue100, CircleShape)
-                        .testTag("update_ytdlp_button")
-                ) {
-                    if (isUpdating) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = Blue600
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Обновить yt-dlp",
-                            tint = Blue600,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            }
-
-            if (!statusMessage.isNullOrBlank()) {
-                Surface(
-                    color = Blue50,
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, Blue100),
-                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = statusMessage,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Blue700,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        text = label,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (selectedIndex == index) FontWeight.Bold else FontWeight.Medium
                     )
                 }
             }
@@ -355,7 +452,7 @@ fun HeaderSection(
 }
 
 @Composable
-fun UrlDownloaderSection(
+fun ExpressiveUrlDownloaderCard(
     url: String,
     isProcessing: Boolean,
     progressPercent: Int,
@@ -364,54 +461,107 @@ fun UrlDownloaderSection(
     onDownloadClick: () -> Unit,
     onPasteClick: () -> Unit
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = BorderStroke(1.dp, CardBorder),
-        modifier = Modifier.fillMaxWidth()
+    ElevatedCard(
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            )
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                text = "DOWNLOAD MEDIA",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-                color = Slate400
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "Загрузка медиа",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
+                    Text(
+                        text = "yt-dlp v2025+",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
 
             OutlinedTextField(
                 value = url,
                 onValueChange = onUrlChange,
                 placeholder = {
                     Text(
-                        "https://www.youtube.com/watch?v=...",
-                        color = Slate400,
-                        fontSize = 13.sp
+                        "Вставьте ссылку (YouTube, VK, Reels, etc.)",
+                        color = MaterialTheme.colorScheme.outline,
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Blue600,
-                    unfocusedBorderColor = Slate200,
-                    focusedTextColor = Slate900,
-                    unfocusedTextColor = Slate900,
-                    focusedContainerColor = InputBg,
-                    unfocusedContainerColor = InputBg
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 ),
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (url.isNotEmpty()) {
                             IconButton(onClick = { onUrlChange("") }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Очистить", tint = Slate400)
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Очистить",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         } else {
                             IconButton(onClick = onPasteClick) {
-                                Icon(Icons.Default.ContentPaste, contentDescription = "Вставить", tint = Blue600)
+                                Icon(
+                                    imageVector = Icons.Default.ContentPaste,
+                                    contentDescription = "Вставить",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
                     }
@@ -424,62 +574,99 @@ fun UrlDownloaderSection(
             Button(
                 onClick = onDownloadClick,
                 enabled = !isProcessing && url.isNotBlank(),
-                shape = RoundedCornerShape(16.dp),
+                shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Blue600,
-                    contentColor = Color.White,
-                    disabledContainerColor = Slate100,
-                    disabledContentColor = Slate400
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
+                    .height(52.dp)
                     .testTag("download_and_clean_button")
             ) {
-                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Download & Clean", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                if (isProcessing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.5.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Очистка медиа...",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Скачать и очистить",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
-            // Minimalist Progress Bar
-            if (isProcessing) {
+            // Expressive Progress Section
+            AnimatedVisibility(
+                visible = isProcessing,
+                enter = fadeIn() + slideInVertically(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ),
+                exit = fadeOut()
+            ) {
                 Column(
-                    modifier = Modifier.padding(top = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 2.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = progressStatus.uppercase(Locale.getDefault()),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp,
-                            color = Blue600,
+                            text = progressStatus.ifBlank { "Обработка..." },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        Text(
-                            text = "$progressPercent%",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Blue600
-                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "$progressPercent%",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
                     }
 
                     LinearProgressIndicator(
                         progress = { (progressPercent / 100f).coerceIn(0f, 1f) },
+                        strokeCap = StrokeCap.Round,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
-                        color = Blue600,
-                        trackColor = Slate100
+                            .height(8.dp)
+                            .clip(CircleShape),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
                     )
                 }
             }
@@ -488,53 +675,68 @@ fun UrlDownloaderSection(
 }
 
 @Composable
-fun LocalFilePickerSection(
+fun ExpressiveLocalFileCard(
     isProcessing: Boolean,
     onPickFileClick: () -> Unit
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Slate50.copy(alpha = 0.6f)),
-        shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(1.dp, CardBorderStrong),
+    ElevatedCard(
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = !isProcessing, onClick = onPickFileClick)
             .testTag("pick_file_button")
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 20.dp, horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .shadow(2.dp, RoundedCornerShape(16.dp), ambientColor = Slate900.copy(alpha = 0.05f))
-                    .background(Color.White, RoundedCornerShape(16.dp))
-                    .border(1.dp, Slate200, RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.Center
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+                modifier = Modifier.size(56.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.UploadFile,
-                    contentDescription = null,
-                    tint = Slate500,
-                    modifier = Modifier.size(28.dp)
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.UploadFile,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Выбрать локальный файл",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Видео (MP4, MKV), фото (JPG, PNG), аудио, PDF",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "Select local file",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Slate700
-                )
-                Text(
-                    text = "Видео, фото, аудио, PDF и документы",
-                    fontSize = 11.sp,
-                    color = Slate400
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FolderOpen,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(10.dp)
+                        .size(20.dp)
                 )
             }
         }
@@ -542,59 +744,78 @@ fun LocalFilePickerSection(
 }
 
 @Composable
-fun ResultCardSection(
+fun ExpressiveResultCard(
     result: ProcessingResult,
     onOpenFile: () -> Unit,
     onShareFile: () -> Unit,
     onCopyHash: (String) -> Unit
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Blue900),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+    ElevatedCard(
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
         modifier = Modifier
             .fillMaxWidth()
             .testTag("result_card")
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Header: Last Result & Cleaned Badge
+            // Header Row: Title & Badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "LAST RESULT",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp,
-                        color = Color.White.copy(alpha = 0.6f)
-                    )
-                    Text(
-                        text = result.originalFileName,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Column {
+                        Text(
+                            text = "Результат очистки",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = result.originalFileName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 Surface(
-                    color = EmeraldBadgeBg,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = CircleShape,
+                    color = if (result.isFallbackUsed) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer
                 ) {
                     Text(
                         text = if (result.isFallbackUsed) "FALLBACK" else "CLEANED",
-                        color = EmeraldBadgeText,
-                        fontSize = 10.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        color = if (result.isFallbackUsed) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -608,57 +829,55 @@ fun ResultCardSection(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Compression Card
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
-                        .padding(12.dp)
+                // Size metric card
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Column {
+                    Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "Compression",
-                            fontSize = 10.sp,
-                            color = Color.White.copy(alpha = 0.6f)
+                            text = "Размер файла",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text(
                                 text = origFmt,
-                                fontSize = 15.sp,
+                                style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "→ $newFmt",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = EmeraldLight
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = EmeraldSuccess
                             )
                         }
                     }
                 }
 
-                // Delta Hash Card
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
-                        .padding(12.dp)
+                // Delta compression card
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Column {
+                    Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "Delta Hash",
-                            fontSize = 10.sp,
-                            color = Color.White.copy(alpha = 0.6f)
+                            text = "Изменение хэша",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = compPercent,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = EmeraldLight
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = EmeraldSuccess
                         )
                     }
                 }
@@ -667,141 +886,157 @@ fun ResultCardSection(
             // SHA-256 Hashes
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Old SHA
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
-                            RoundedCornerShape(8.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                // Old SHA Row
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "OLD SHA-256",
-                            fontSize = 9.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White.copy(alpha = 0.5f)
-                        )
-                        SelectionContainer {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = result.originalSha256,
-                                fontSize = 10.sp,
+                                text = "OLD SHA-256",
+                                style = MaterialTheme.typography.labelSmall,
                                 fontFamily = FontFamily.Monospace,
-                                color = Color.White.copy(alpha = 0.9f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            SelectionContainer {
+                                Text(
+                                    text = result.originalSha256,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = { onCopyHash(result.originalSha256) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Копировать старый хэш",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
-                    }
-                    IconButton(
-                        onClick = { onCopyHash(result.originalSha256) },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy Old Hash",
-                            tint = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.size(13.dp)
-                        )
                     }
                 }
 
-                // New SHA
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(8.dp))
-                        .border(
-                            BorderStroke(1.dp, EmeraldLight.copy(alpha = 0.3f)),
-                            RoundedCornerShape(8.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                // New SHA Row
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "NEW SHA-256",
-                            fontSize = 9.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = EmeraldLight
-                        )
-                        SelectionContainer {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = result.newSha256,
-                                fontSize = 10.sp,
+                                text = "NEW SHA-256 (ОЧИЩЕН)",
+                                style = MaterialTheme.typography.labelSmall,
                                 fontFamily = FontFamily.Monospace,
-                                color = EmeraldLight,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            SelectionContainer {
+                                Text(
+                                    text = result.newSha256,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = { onCopyHash(result.newSha256) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Копировать новый хэш",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
-                    }
-                    IconButton(
-                        onClick = { onCopyHash(result.newSha256) },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy New Hash",
-                            tint = EmeraldLight,
-                            modifier = Modifier.size(13.dp)
-                        )
                     }
                 }
             }
 
-            // Action Buttons
-            Row(
+            // Final Action Buttons: Large Pill Full Width Buttons
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
                     onClick = onOpenFile,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Blue600,
-                        contentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     modifier = Modifier
-                        .weight(1f)
-                        .height(42.dp)
+                        .fillMaxWidth()
+                        .height(52.dp)
                         .testTag("open_file_button")
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Filled.OpenInNew,
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Открыть", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Открыть файл",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
-                OutlinedButton(
+                FilledTonalButton(
                     onClick = onShareFile,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ),
                     modifier = Modifier
-                        .weight(1f)
-                        .height(42.dp)
+                        .fillMaxWidth()
+                        .height(52.dp)
                         .testTag("share_file_button")
                 ) {
                     Icon(
-                        Icons.Default.Share,
+                        imageVector = Icons.Default.Share,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Поделиться", fontSize = 13.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Поделиться файлом",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -809,12 +1044,13 @@ fun ResultCardSection(
 }
 
 @Composable
-fun LogConsoleSection(
+fun ExpressiveLogConsole(
     logs: List<LogEntry>,
     onClearLogs: () -> Unit,
     onCopyLogs: () -> Unit
 ) {
     val listState = rememberLazyListState()
+    var isExpanded by remember { mutableStateOf(true) }
 
     // Pulsing indicator animation
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -828,25 +1064,40 @@ fun LogConsoleSection(
         label = "pulseAlpha"
     )
 
+    val rotationAngle by animateFloatAsState(
+        targetValue = if (isExpanded) 0f else 180f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "expandRotation"
+    )
+
     // Auto-scroll to bottom on new log
-    LaunchedEffect(logs.size) {
-        if (logs.isNotEmpty()) {
+    LaunchedEffect(logs.size, isExpanded) {
+        if (logs.isNotEmpty() && isExpanded) {
             listState.animateScrollToItem(logs.size - 1)
         }
     }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = TerminalBg),
-        shape = RoundedCornerShape(20.dp),
+    Surface(
+        color = TerminalDarkBg,
+        shape = RoundedCornerShape(28.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            )
             .testTag("log_console_card")
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Terminal Header
+            // Header Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -854,74 +1105,86 @@ fun LogConsoleSection(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.clickable { isExpanded = !isExpanded }
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(6.dp)
+                            .size(8.dp)
                             .alpha(alphaAnim)
                             .background(EmeraldLight, CircleShape)
                     )
                     Text(
-                        text = "CONSOLE OUTPUT",
+                        text = "CONSOLE LOGS (${logs.size})",
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.2.sp,
-                        color = Slate400
+                        color = Color.White.copy(alpha = 0.85f)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ExpandLess,
+                        contentDescription = "Свернуть",
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier
+                            .size(18.dp)
+                            .rotate(rotationAngle)
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    IconButton(
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    FilledTonalIconButton(
                         onClick = onCopyLogs,
-                        modifier = Modifier.size(26.dp)
+                        shape = CircleShape,
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.ContentCopy,
                             contentDescription = "Копировать логи",
-                            tint = Slate500,
+                            tint = Color.White,
                             modifier = Modifier.size(14.dp)
                         )
                     }
-                    IconButton(
+                    FilledTonalIconButton(
                         onClick = onClearLogs,
-                        modifier = Modifier.size(26.dp)
+                        shape = CircleShape,
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.LayersClear,
                             contentDescription = "Очистить логи",
-                            tint = Slate500,
+                            tint = Color.White,
                             modifier = Modifier.size(14.dp)
                         )
                     }
                 }
             }
 
-            HorizontalDivider(color = Slate800, thickness = 1.dp)
+            if (isExpanded) {
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
 
-            // Logs list
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 100.dp, max = 200.dp)
-            ) {
-                if (logs.isEmpty()) {
-                    Text(
-                        text = "Ready. Waiting for input...",
-                        color = Slate600,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                } else {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(3.dp)
-                    ) {
-                        items(logs) { entry ->
-                            LogItemView(entry = entry)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 100.dp, max = 220.dp)
+                ) {
+                    if (logs.isEmpty()) {
+                        Text(
+                            text = "Ready. Waiting for input...",
+                            color = Color.White.copy(alpha = 0.4f),
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    } else {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(logs) { entry ->
+                                LogItemView(entry = entry)
+                            }
                         }
                     }
                 }
@@ -941,8 +1204,8 @@ fun LogItemView(entry: LogEntry) {
     ) {
         Text(
             text = "[${entry.timestamp}]",
-            color = Slate500,
-            fontSize = 11.sp,
+            color = TerminalTimestamp,
+            fontSize = 10.sp,
             fontFamily = FontFamily.Monospace
         )
         SelectionContainer(modifier = Modifier.weight(1f)) {
@@ -950,7 +1213,8 @@ fun LogItemView(entry: LogEntry) {
                 text = entry.message,
                 color = when {
                     isError -> TerminalRed
-                    isSuccess -> EmeraldLight
+                    isSuccess -> TerminalGreen
+                    entry.tag == "YTDLP" -> TerminalCyan
                     else -> TerminalText
                 },
                 fontSize = 11.sp,
@@ -962,35 +1226,44 @@ fun LogItemView(entry: LogEntry) {
 }
 
 @Composable
-fun ErrorBanner(message: String, onDismiss: () -> Unit) {
+fun ExpressiveErrorBanner(message: String, onDismiss: () -> Unit) {
     Surface(
-        color = RoseErrorBg,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, RoseError.copy(alpha = 0.4f)),
+        color = MaterialTheme.colorScheme.errorContainer,
+        shape = RoundedCornerShape(24.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Icon(
-                    Icons.Outlined.Warning,
+                    imageVector = Icons.Outlined.Warning,
                     contentDescription = "Ошибка",
-                    tint = RoseError,
-                    modifier = Modifier.size(18.dp)
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.size(20.dp)
                 )
-                Text(text = message, color = RoseError, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
             }
             IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.Clear, contentDescription = "Закрыть", tint = RoseError, modifier = Modifier.size(16.dp))
+                Icon(
+                    imageVector = Icons.Default.Clear,
+                    contentDescription = "Закрыть",
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
     }
@@ -1013,4 +1286,3 @@ private fun calculateDiffPercent(orig: Long, processed: Long): String {
         String.format(Locale.US, "+%.1f%%", -percent)
     }
 }
-
