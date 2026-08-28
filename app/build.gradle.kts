@@ -13,10 +13,6 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
-        ndk {
-            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64"))
-        }
     }
 
     buildFeatures {
@@ -45,8 +41,10 @@ dependencies {
     implementation("androidx.compose.material3:material3:1.2.1")
     implementation("androidx.compose.material:material-icons-extended:1.6.8")
 
-    // Официальный рабочий пакет FFmpegKit из Maven Central
-    implementation("com.arthenica:ffmpeg-kit-full:4.5.LTS")
+    // Официальный движок Google Media3 (аппаратное сжатие и очистка метаданных)
+    implementation("androidx.media3:media3-transformer:1.3.1")
+    implementation("androidx.media3:media3-effect:1.3.1")
+    implementation("androidx.media3:media3-common:1.3.1")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
