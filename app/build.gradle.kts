@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.cleaner"
+    namespace = "com.example"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.cleaner"
+        applicationId = "com.example"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
@@ -54,11 +54,11 @@ dependencies {
     implementation("androidx.compose.material3:material3:1.2.1")
     implementation("androidx.compose.material:material-icons-extended:1.6.8")
 
-    // Точная версия FFmpegKit, существующая в Maven Central
-    implementation("com.arthenica:ffmpeg-kit-full:4.5.1-1.LTS")
+    // Точные координаты FFmpegKit в Maven Central
+    implementation("com.arthenica:ffmpeg-kit-full:4.5.1")
 
-    // Стабильная версия YouTube-DL из JitPack
-    implementation("com.github.yausername.youtubedl-android:library:0.14.0")
+    // Точные координаты youtubedl-android и OkHttp
+    implementation("com.github.yausername.youtubedl-android:library:0.17.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // Coroutines
