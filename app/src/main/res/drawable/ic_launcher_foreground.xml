@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Center Shield & Media Sanitizer Symbol within safe zone 66dp (centered at 54, 54) -->
+    <!-- Shield Outline / Base -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M54,26 C64,26 74,31 76,33 C76,55 67,69 54,78 C41,69 32,55 32,33 C34,31 44,26 54,26 Z" />
+    <!-- Inner Dark Layer -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M54,30 C62,30 70,34 72,36 C72,53 64,65 54,73 C44,65 36,53 36,36 C38,34 46,30 54,30 Z" />
+    <!-- Clean Sparkle / Media Play Icon in the center -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M48,43 L63,52 L48,61 Z" />
+    <!-- Small Clean Sparkle -->
+    <path
+        android:fillColor="#F0F9FF"
+        android:pathData="M66,38 L68,43 L73,45 L68,47 L66,52 L64,47 L59,45 L64,43 Z" />
+</vector>

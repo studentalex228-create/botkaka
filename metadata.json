@@ -1,0 +1,7 @@
+{
+  "name": "Media Sanitizer",
+  "description": "Локальная очистка метаданных, изменение SHA-256 и загрузка медиа по ссылкам",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
