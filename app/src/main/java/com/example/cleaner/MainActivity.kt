@@ -12,20 +12,52 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -66,9 +98,9 @@ class MainActivity : ComponentActivity() {
 fun AppScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    
+
     var urlText by remember { mutableStateOf("") }
-    var selectedMode by remember { mutableStateOf(1) } // 0: Без сжатия, 1: Оптимально, 2: Максимум
+    var selectedMode by remember { mutableIntStateOf(1) } // 0: Без сжатия, 1: Оптимально, 2: Максимум
     var isProcessing by remember { mutableStateOf(false) }
     var logText by remember { mutableStateOf("Готов к работе...") }
     var resultFile by remember { mutableStateOf<File?>(null) }
@@ -82,21 +114,19 @@ fun AppScreen() {
             scope.launch {
                 isProcessing = true
                 resultFile = null
-                logText = "Чтение выбранного файла..."
+                logText = "Копирование выбранного файла..."
                 val inputFile = copyUriToCache(context, it)
                 origSha = calculateSHA256(inputFile)
-                logText = "Исходный SHA-256:\n$origSha\nЗапуск FFmpeg..."
+                logText = "Исходный SHA-256:\n$origSha\n\nЗапуск FFmpeg..."
 
-                val output = processMedia(context, inputFile, selectedMode) { log ->
-                    logText = log
-                }
+                val output = processMedia(context, inputFile, selectedMode)
                 
                 if (output != null && output.exists()) {
                     newSha = calculateSHA256(output)
                     resultFile = output
                     logText += "\n\nОбработка завершена!\nНовый SHA-256:\n$newSha"
                 } else {
-                    logText += "\nОшибка обработки."
+                    logText += "\nОшибка обработки медиафайла."
                 }
                 isProcessing = false
             }
@@ -108,7 +138,7 @@ fun AppScreen() {
             CenterAlignedTopAppBar(
                 title = { Text("Media Cleaner", fontWeight = FontWeight.Bold) },
                 actions = {
-                    FilledTonalIconButton(onClick = { logText = "Модули обновлены" }) {
+                    FilledTonalIconButton(onClick = { logText = "Модули обновлены." }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Update")
                     }
                 }
@@ -123,7 +153,7 @@ fun AppScreen() {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Режим сжатия
+            // Переключатель режимов
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 val modes = listOf("Без сжатия", "720p", "480p")
                 modes.forEachIndexed { index, label ->
@@ -137,7 +167,7 @@ fun AppScreen() {
                 }
             }
 
-            // Загрузка по ссылке
+            // Скачивание по URL
             ElevatedCard(
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -153,7 +183,7 @@ fun AppScreen() {
                         singleLine = true
                     )
                     Button(
-                        onClick = { logText = "Скачивание пока доступно для локальных файлов" },
+                        onClick = { logText = "Скачивание URL будет подключено в следующем модуле" },
                         modifier = Modifier.fillMaxWidth().clip(CircleShape),
                         enabled = !isProcessing && urlText.isNotBlank()
                     ) {
@@ -164,7 +194,7 @@ fun AppScreen() {
                 }
             }
 
-            // Выбор файла
+            // Выбор локального файла
             ElevatedCard(
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -172,36 +202,40 @@ fun AppScreen() {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Локальный файл", fontWeight = FontWeight.Bold)
                     Button(
-                        onClick = { filePickerLauncher.launch("*/*") },
+                        onClick = { filePickerLauncher.launch("video/*") },
                         modifier = Modifier.fillMaxWidth().clip(CircleShape),
                         enabled = !isProcessing
                     ) {
                         Icon(Icons.Default.FileOpen, null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Выбрать файл с устройства")
+                        Text("Выбрать видео с устройства")
                     }
                 }
             }
 
-            // Индикатор процесса
+            // Индикатор выполнения
             AnimatedVisibility(visible = isProcessing) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth().clip(CircleShape))
             }
 
-            // Карточка результата
+            // Карточка готового результата
             AnimatedVisibility(
                 visible = resultFile != null,
-                enter = spring<androidx.compose.animation.EnterTransition>(
-                    dampingRatio = Spring.DampingRatioMediumBouncy
-                ).let { expandVertically() + fadeIn() }
+                enter = expandVertically() + fadeIn()
             ) {
                 ElevatedCard(
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Файл готов!", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(
+                            text = "Файл готов!",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
                                 onClick = { resultFile?.let { saveToGallery(context, it) } },
@@ -224,7 +258,7 @@ fun AppScreen() {
                 }
             }
 
-            // Логи
+            // Консоль логов
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant,
@@ -244,14 +278,13 @@ fun AppScreen() {
 suspend fun processMedia(
     context: Context,
     input: File,
-    mode: Int,
-    onLog: (String) -> Unit
+    mode: Int
 ): File? = withContext(Dispatchers.IO) {
     val output = File(context.cacheDir, "clean_${UUID.randomUUID().toString().take(8)}_${input.name}")
     val cmd = when (mode) {
         0 -> "-y -i \"${input.absolutePath}\" -map_metadata -1 -fflags +bitexact -c copy \"${output.absolutePath}\""
-        1 -> "-y -threads 4 -i \"${input.absolutePath}\" -map_metadata -1 -fflags +bitexact -vf \"scale='min(1280,iw)':-2\" -c:v libx264 -crf 28 -preset veryfast -c:a aac -b:a 96k \"${output.absolutePath}\""
-        else -> "-y -threads 4 -i \"${input.absolutePath}\" -map_metadata -1 -fflags +bitexact -vf \"scale='min(854,iw)':-2\" -c:v libx264 -crf 32 -preset veryfast -c:a aac -b:a 64k \"${output.absolutePath}\""
+        1 -> "-y -threads 4 -i \"${input.absolutePath}\" -map_metadata -1 -fflags +bitexact -vf \"scale='min(1280,iw)':-2\" -c:v libopenh264 -b:v 1500k -c:a aac -b:a 96k \"${output.absolutePath}\""
+        else -> "-y -threads 4 -i \"${input.absolutePath}\" -map_metadata -1 -fflags +bitexact -vf \"scale='min(854,iw)':-2\" -c:v libopenh264 -b:v 800k -c:a aac -b:a 64k \"${output.absolutePath}\""
     }
     
     val session = FFmpegKit.execute(cmd)
@@ -271,7 +304,7 @@ fun calculateSHA256(file: File): String {
 }
 
 fun copyUriToCache(context: Context, uri: Uri): File {
-    val file = File(context.cacheDir, "raw_${UUID.randomUUID().toString().take(6)}")
+    val file = File(context.cacheDir, "raw_${UUID.randomUUID().toString().take(6)}.mp4")
     context.contentResolver.openInputStream(uri)?.use { input ->
         FileOutputStream(file).use { output -> input.copyTo(output) }
     }
