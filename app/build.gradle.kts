@@ -34,6 +34,38 @@ android {
 
     buildFeatures {
         compose = true
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.example.cleaner"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.example.cleaner"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+        
+        ndk {
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64"))
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    buildFeatures {
+        compose = true
     }
 
     composeOptions {
@@ -58,7 +90,18 @@ dependencies {
     implementation("androidx.compose.material3:material3:1.2.1")
     implementation("androidx.compose.material:material-icons-extended:1.6.8")
 
-    // FFmpeg Kit (Для MediaProcessor.kt)
+    // FFmpegKit (нужен для вашего MediaProcessor.kt)
+    implementation("com.arthenica:ffmpeg-kit-full:4.5.1-2")
+
+    // yt-dlp и OkHttp (нужны для ваших App.kt и MediaRepository.kt)
+    implementation("com.github.yausername.youtubedl-android:library:0.17.2")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+}
+
+   // FFmpeg Kit (Для MediaProcessor.kt)
     implementation("com.arthenica:ffmpeg-kit-full:4.5.1-2")
 
     // YouTube-DL и OkHttp (Для App.kt и MediaRepository.kt)
